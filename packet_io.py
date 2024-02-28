@@ -107,7 +107,7 @@ if __name__ == "__main__":
 
         # protocol, ip, port, packet_size = input("TCP or UDP: "), input('IP: '), input('Port: '), input('Packet Size: ')
 
-        protocol, ip, port, packet_size = "tcp", "", 1337, 1024
+        protocol, ip, port, packet_size = "tcp", "192.168.1.2", 1337, 1024
         packet_handler = PacketHandler(
             protocol.lower(), ip, port, packet_size, send_or_receive
         )
@@ -129,7 +129,7 @@ if __name__ == "__main__":
             print(
                 "Average throughput: ",
                 statistics.mean(packet_handler.throughputs),
-                "kbps",
+                f"kbps\nTotal packets: {len(packet_handler.throughputs)}",
             )
         print("Goodbye.")
     except KeyboardInterrupt:
@@ -137,6 +137,6 @@ if __name__ == "__main__":
             print(
                 "Average throughput: ",
                 statistics.mean(packet_handler.throughputs),
-                "kbps",
+                f"kbps\nTotal packets: {len(packet_handler.throughputs)}",
             )
         print("\nGoodbye.")
