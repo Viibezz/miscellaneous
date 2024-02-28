@@ -18,6 +18,7 @@ import socket
 import time
 import statistics
 
+
 class PacketHandler:
 
     def __init__(self, protocol, ip, port, packet_size, send_or_receive):
@@ -47,7 +48,7 @@ class PacketHandler:
                 self.connected = True
             self.socket.sendall(bytes(packet, "utf-8"))
             end_time = time.time()
-            print(self.display_throughput('uplink', end_time - start_time))
+            print(self.display_throughput("uplink", end_time - start_time))
             data = self.socket.recv(self.packet_size)
             print("The server echoed back: ", repr(data))
         except Exception as e:
@@ -56,10 +57,10 @@ class PacketHandler:
     # This function receives packets
     def receive_packet_server(self):
         try:
-            # Listen to TCP/IP with max 2 connections 
+            print(f"Server listening on {self.ip}/{self.protocol}:{self.port}...")
+            # Listen to TCP/IP with max 2 connections
             if self.protocol == "tcp":
                 self.socket.listen(2)
-                print(f"Server listening on {self.ip}:{self.port}...")
                 while True:
                     start_time = time.time()
                     conn, addr = self.socket.accept()
@@ -69,11 +70,15 @@ class PacketHandler:
                             end_time = time.time()
                             if not data:
                                 print(f"Connection closed by {addr}")
-                                break
+                                return
                             print(f"Connected by TCP/{addr} - Data received: {data}")
                             conn.sendall(data)
-                            print('Echoed data back to client.')
-                            print(self.display_throughput('downlink', end_time - start_time))
+                            print("Echoed data back to client.")
+                            print(
+                                self.display_throughput(
+                                    "downlink", end_time - start_time
+                                )
+                            )
             # UDP is connectionless, no need to listen
             else:
                 while True:
@@ -81,14 +86,14 @@ class PacketHandler:
                     data, addr = self.socket.recvfrom(self.packet_size)
                     end_time = time.time()
                     print(f"From {addr} - Data received: {data}")
-                    print(self.display_throughput('downlink', end_time - start_time))
+                    print(self.display_throughput("downlink", end_time - start_time))
         except Exception as e:
             print("Error: ", e)
 
     # This function displays (down/up)link throughput
     def display_throughput(self, direction, elapsed_time):
-        tp = "{:.3f}".format((self.packet_size * .001) / elapsed_time)
-        throughputs.add(tp)
+        tp = "{:.3f}".format((self.packet_size * 0.001) / elapsed_time)
+        self.throughputs.add(float(tp))
         return f"Packet {direction} throughput: {tp} kilobytes per second"
 
 
@@ -100,7 +105,7 @@ if __name__ == "__main__":
 
     # protocol, ip, port, packet_size = input("TCP or UDP: "), input('IP: '), input('Port: '), input('Packet Size: ')
 
-    protocol, ip, port, packet_size = "tcp", "", 1337, 1024
+    protocol, ip, port, packet_size = "udp", "", 1337, 1024
     packet_handler = PacketHandler(
         protocol.lower(), ip, port, packet_size, send_or_receive
     )
@@ -110,17 +115,20 @@ if __name__ == "__main__":
         new_message = True
         while new_message:
             packet_data = input("Message to send (-1 to exit): ")
-            if packet_data != '-1':
+            if packet_data != "-1":
                 packet_handler.send_packet_client(packet_data)
             else:
                 new_message = False
-        print('Goodbye.')
     # receive data
     elif send_or_receive == "2":
         received_packets = packet_handler.receive_packet_server()
 
-    print("Average throughput: ", statistics.mean(self.throughputs), 'kbps')
+    if packet_handler.throughputs:
+        print(
+            "Average throughput: ", statistics.mean(packet_handler.throughputs), "kbps"
+        )
 
+    print("Goodbye.")
 
     # 1) close the socket
     # 2) Threading?
