@@ -69,6 +69,7 @@ class PacketHandler:
                             data = conn.recv(self.packet_size)
                             end_time = time.time()
                             if not data:
+                                packet_handler.socket.close()
                                 print(f"Connection closed by {addr}")
                                 return
                             print(f"Connected by TCP/{addr} - Data received: {data}")
@@ -105,7 +106,7 @@ if __name__ == "__main__":
 
     # protocol, ip, port, packet_size = input("TCP or UDP: "), input('IP: '), input('Port: '), input('Packet Size: ')
 
-    protocol, ip, port, packet_size = "udp", "", 1337, 1024
+    protocol, ip, port, packet_size = "tcp", "", 1337, 1024
     packet_handler = PacketHandler(
         protocol.lower(), ip, port, packet_size, send_or_receive
     )
@@ -129,7 +130,3 @@ if __name__ == "__main__":
         )
 
     print("Goodbye.")
-
-    # 1) close the socket
-    # 2) Threading?
-    # 3) IPv6?
