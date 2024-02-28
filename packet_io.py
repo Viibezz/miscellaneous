@@ -99,34 +99,44 @@ class PacketHandler:
 
 
 if __name__ == "__main__":
-    # '1' = send, '2' = receive
-    send_or_receive = input("1.Send Packets\n2.Receive Packets\n")
-    while send_or_receive != "1" and send_or_receive != "2":
+    try:
+        # '1' = send, '2' = receive
         send_or_receive = input("1.Send Packets\n2.Receive Packets\n")
+        while send_or_receive != "1" and send_or_receive != "2":
+            send_or_receive = input("1.Send Packets\n2.Receive Packets\n")
 
-    # protocol, ip, port, packet_size = input("TCP or UDP: "), input('IP: '), input('Port: '), input('Packet Size: ')
+        # protocol, ip, port, packet_size = input("TCP or UDP: "), input('IP: '), input('Port: '), input('Packet Size: ')
 
-    protocol, ip, port, packet_size = "tcp", "", 1337, 1024
-    packet_handler = PacketHandler(
-        protocol.lower(), ip, port, packet_size, send_or_receive
-    )
-
-    # send data to the server
-    if send_or_receive == "1":
-        new_message = True
-        while new_message:
-            packet_data = input("Message to send (-1 to exit): ")
-            if packet_data != "-1":
-                packet_handler.send_packet_client(packet_data)
-            else:
-                new_message = False
-    # receive data
-    elif send_or_receive == "2":
-        received_packets = packet_handler.receive_packet_server()
-
-    if packet_handler.throughputs:
-        print(
-            "Average throughput: ", statistics.mean(packet_handler.throughputs), "kbps"
+        protocol, ip, port, packet_size = "tcp", "", 1337, 1024
+        packet_handler = PacketHandler(
+            protocol.lower(), ip, port, packet_size, send_or_receive
         )
 
-    print("Goodbye.")
+        # send data to the server
+        if send_or_receive == "1":
+            new_message = True
+            while new_message:
+                packet_data = input("Message to send (-1 to exit): ")
+                if packet_data != "-1":
+                    packet_handler.send_packet_client(packet_data)
+                else:
+                    new_message = False
+        # receive data
+        elif send_or_receive == "2":
+            received_packets = packet_handler.receive_packet_server()
+
+        if packet_handler.throughputs:
+            print(
+                "Average throughput: ",
+                statistics.mean(packet_handler.throughputs),
+                "kbps",
+            )
+        print("Goodbye.")
+    except KeyboardInterrupt:
+        if packet_handler.throughputs:
+            print(
+                "Average throughput: ",
+                statistics.mean(packet_handler.throughputs),
+                "kbps",
+            )
+        print("\nGoodbye.")
