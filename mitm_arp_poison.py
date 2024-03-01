@@ -1,9 +1,15 @@
 '''
 ARP poisoning attack and man-in-the-middle interception using the Scapy library.
+Spams target with ARP reply packets, saying that the gateway's MAC is the
+attacker's. 
+Spams gateway with ARP reply packets, saying that the target's MAC is the
+attacker's.
 
 1. Select a target device
-2. Modify its ARP cache table to replace target device MAC with the attacker's
-3. Do same step #2 for the router/gateway device ^
+2. Modify target machine's ARP cache table replacing gateway MAC with the attacker's,
+    by sending an ARP reply to the target of attacker's MAC.
+3. Do same step #2 on the router/gateway device, replacing target's MAC with 
+    attacker's ^
 4. `arp -a` / Wireshark
 
 ARP
@@ -16,8 +22,8 @@ Prevent ARP Poisoning
   IPv6 comes with Neighboring Discovery Protocol (NDP) to verify host
 '''
 
-import scapy
-import time
+from scapy.all import *  # create ARP packets
+import time   # throttle  
 
 
 if __name__ == "__main__":
