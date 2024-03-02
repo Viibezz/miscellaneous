@@ -1,25 +1,22 @@
 '''
 ARP poisoning attack and man-in-the-middle interception using the Scapy library.
-Spams target with ARP reply packets, saying that the gateway's MAC is the
-attacker's. 
-Spams gateway with ARP reply packets, saying that the target's MAC is the
-attacker's.
 
-1. Select a target device
-2. Modify target machine's ARP cache table replacing gateway MAC with the attacker's,
-    by sending an ARP reply to the target of attacker's MAC.
-3. Do same step #2 on the router/gateway device, replacing target's MAC with 
-    attacker's ^
-4. `arp -a` / Wireshark
+ARP (Address Resolution Protocol) is a protocol used to map IP addresses to MAC addresses on a local network. It allows devices to discover and communicate with each other on the same network segment.
 
-ARP
-  IPv4 designed for efficiency not security, connect to a network and make 
-   an ARP Request that every device will resposnd to & identify themselves
+ARP poisoning/spoofing intercepts and manipulates network traffic between a target device and the gateway. By spoofing ARP messages, the attacker can trick the target device and the gateway into associating the attacker's MAC address with each other's IP addresses, effectively positioning the attacker as a "man-in-the-middle."
 
-Prevent ARP Poisoning
-  Use VPN to tunnel encrypted traffic
-  Define static ARP entry for devices/IP addresses  
-  IPv6 comes with Neighboring Discovery Protocol (NDP) to verify host
+1. Select a target device on the network.
+2. Spam ARP reply packets (op=2) to the target device, pretending to be the gateway (psrc). These forged ARP reply packets contain the attacker's MAC address (hwsrc), causing the target device to update its ARP cache table, associating the attacker's MAC address with the gateway's IP address.
+3. Repeat the process for the gateway device, sending ARP reply packets to it with the target device's IP address and the attacker's MAC address, causing the gateway to update its ARP cache table accordingly.
+4. Test with `arp -a` / wireshark
+5. The attacker can now intercept, modify, or eavesdrop on network traffic between the target device and the gateway, potentially gaining access to sensitive information.
+
+Preventing ARP Poisoning Attacks:
+
+- Use a VPN to tunnel encrypted traffic, making it more difficult for attackers to intercept.
+- Define static ARP entries for critical devices/IP addresses to prevent unauthorized ARP cache modifications.
+- Implement network segmentation to isolate sensitive devices or subnets from potential attackers.
+- Monitor network traffic for suspicious ARP activity and employ intrusion detection systems to detect and mitigate ARP spoofing attacks.
 '''
 
 from scapy.all import *  # create ARP packets
