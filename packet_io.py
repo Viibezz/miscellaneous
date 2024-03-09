@@ -44,12 +44,11 @@ class PacketHandler:
 
     # This function sends packets
     def send_packet_client(self):
-        try:
+        def input_thread():
             while True:
                 packet = input("Message to send (-1 to exit): ")
                 if packet == "-1":
                     break
-
                 start_time = time.time()
                 if not self.connected:
                     self.socket.connect((self.ip, self.port))
@@ -57,10 +56,17 @@ class PacketHandler:
                 self.socket.sendall(bytes(packet, "utf-8"))
                 end_time = time.time()
                 print(self.display_throughput("uplink", end_time - start_time))
+
+        input_thread = threading.Thread(target=input_thread)
+        input_thread.start()
+        try:
+            while True:
                 data = self.socket.recv(self.packet_size)
                 print("The server echoed back: ", repr(data))
         except Exception as e:
             print("Error: ", e)
+        finally:
+            input_thread.join()
 
     # This function receives packets
     def receive_packet_server(self):
@@ -112,12 +118,12 @@ if __name__ == "__main__":
     try:
         # protocol, ip, port, packet_size = input("TCP or UDP: "), input('IP: '), input('Port: '), input('Packet Size: ')
 
-        protocol, ip, port, packet_size = "tcp", "192.168.1.18", 1337, 1024
+        protocol, ip, port, packet_size = "tcp", "192.168.1.25", 1337, 1024
+
+        client_packet_handler = PacketHandler(protocol.lower(), port, packet_size, ip)
+        send_thread = threading.Thread(target=client_packet_handler.send_packet_client)
 
         server_packet_handler = PacketHandler(protocol.lower(), port, packet_size)
-        client_packet_handler = PacketHandler(protocol.lower(), port, packet_size, ip)
-
-        send_thread = threading.Thread(target=client_packet_handler.send_packet_client)
         recv_thread = threading.Thread(
             target=server_packet_handler.receive_packet_server
         )
