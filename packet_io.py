@@ -24,8 +24,18 @@ import threading
 
 
 class PacketHandler:
+    """A class to handle sending and receiving packets over TCP/UDP."""
 
     def __init__(self, protocol, port, packet_size, ip="localhost"):
+        """
+        Initialize the PacketHandler.
+
+        Parameters:
+        - protocol (str): The protocol to use (either "tcp" or "udp").
+        - port (int): The port number to bind/listen on.
+        - packet_size (int): The size of the packets to send/receive.
+        - ip (str, optional): The IP address to bind to or connect to. Defaults to "localhost".
+        """
         self.protocol = protocol
         self.port = port
         self.packet_size = packet_size
@@ -40,41 +50,58 @@ class PacketHandler:
         )
         # Bind and listen for tcp server
         if self.protocol == "tcp" and ip == "localhost":
-            self.socket.bind((ip, port))
+            self.socket.bind(("192.168.1.12", port))  # host IP
 
-    # This function sends packets
     def send_packet_client(self):
+        """
+        Start a thread to send packets from the client.
+        """
+
         def input_thread():
-            while True:
-                packet = input("Message to send (-1 to exit): ")
-                if packet == "-1":
-                    break
-                start_time = time.time()
-                if not self.connected:
-                    self.socket.connect((self.ip, self.port))
-                    self.connected = True
-                self.socket.sendall(bytes(packet, "utf-8"))
-                end_time = time.time()
-                print(self.display_throughput("uplink", end_time - start_time))
+            """
+            Thread function to handle user input for sending packets.
+            """
+            try:
+                while True:
+                    packet_data = input("Message to send (-1 to exit client): ")
+                    if packet_data == "-1":
+                        print("Client connection closed.")
+                        return
+                    start_time = time.time()
+                    if not self.connected:
+                        self.socket.connect((self.ip, self.port))
+                        self.connected = True
+                    self.socket.sendall(bytes(packet_data, "utf-8"))
+                    end_time = time.time()
+                    data = self.socket.recv(self.packet_size)
+                    print("The server echoed back: ", repr(data))
+                    print(self.display_throughput("uplink", end_time - start_time))
+            except:
+                print("Error in input_thread.")
 
-        input_thread = threading.Thread(target=input_thread)
-        input_thread.start()
         try:
-            while True:
-                data = self.socket.recv(self.packet_size)
-                print("The server echoed back: ", repr(data))
+            # This thread will allow user input of the packet data to send,
+            # without waiting for the main thread to finish execution,
+            # to allow receiving packets while user inputs message
+            packet_input_thread = threading.Thread(target=input_thread)
+            packet_input_thread.start()
         except Exception as e:
-            print("Error: ", e)
+            print("Client Error: ", e)
         finally:
-            input_thread.join()
+            # This will clean up after the packet input thread finishes execution,
+            # before the main thread continues execution
+            if packet_input_thread:
+                packet_input_thread.join()
 
-    # This function receives packets
     def receive_packet_server(self):
+        """
+        Start listening for incoming packets on the server.
+        """
         try:
-            print(f"Server listening on localhost/{self.protocol}:{self.port}...")
-            # Listen to TCP/IP
+            print(f"\nServer listening on localhost/{self.protocol}:{self.port}...")
+            # server listens for TCP packets
             if self.protocol == "tcp":
-                self.socket.listen(3)  # max connections
+                self.socket.listen(2)  # max connections
                 while True:
                     self.handle_client()
 
@@ -86,68 +113,79 @@ class PacketHandler:
                     end_time = time.time()
                     print(f"From {addr} - Data received: {data}")
                     print(self.display_throughput("downlink", end_time - start_time))
-        except Exception as e:
-            print("Error: ", e)
+        except:
+            print("Server connection closed.")
 
-    # Receive packet, echo it back, and display downlink
+    # Receive TCP packet, echo it back, and display its throughput
     def handle_client(self):
+        """
+        Handle incoming client connections.
+        """
         start_time = time.time()
         conn, addr = self.socket.accept()
         with conn:
             while True:
                 data = conn.recv(self.packet_size)
                 end_time = time.time()
+                # close connection socket but keep listening for new connections
                 if not data:
                     conn.close()  # connection socket
-                    self.socket.close()  # listening socket
                     print(f"Connection closed by {addr}")
-                    return
-                print(f"Connected by TCP/{addr} - Data received: {data}")
+                    break
+                print(f"\nConnected by TCP/{addr} - Data received: {data}")
                 conn.sendall(data)
-                print("Echoed data back to client.")  # log
+                print(f"Echoed {data} back to client.")  # log
                 print(self.display_throughput("downlink", end_time - start_time))
+        self.socket.close()  # close listening socket after handling client
 
-    # This function displays (down/up)link throughput
-    def display_throughput(self, direction, elapsed_time):
+    def display_throughput(self, link, elapsed_time):
+        """
+        Display the throughput for a given link.
+
+        :param link: The direction of the throughput (uplink/downlink).
+        :param elapsed_time: The elapsed time for packet transmission.
+        :return: A string representing the throughput.
+        """
         tp = "{:.3f}".format((self.packet_size * 0.001) / elapsed_time)
         self.throughputs.add(float(tp))
-        return f"Packet {direction} throughput: {tp} kilobytes per second"
+        return f"Packet {link} throughput: {tp} kilobytes per second\n"
 
 
 if __name__ == "__main__":
     try:
         # protocol, ip, port, packet_size = input("TCP or UDP: "), input('IP: '), input('Port: '), input('Packet Size: ')
+        protocol, remote_ip, port, packet_size = "tcp", "192.168.1.25", 1337, 1024
 
-        protocol, ip, port, packet_size = "tcp", "192.168.1.25", 1337, 1024
-
-        client_packet_handler = PacketHandler(protocol.lower(), port, packet_size, ip)
-        send_thread = threading.Thread(target=client_packet_handler.send_packet_client)
-
+        # Define receive/send sockets
         server_packet_handler = PacketHandler(protocol.lower(), port, packet_size)
         recv_thread = threading.Thread(
             target=server_packet_handler.receive_packet_server
         )
+        client_packet_handler = PacketHandler(
+            protocol.lower(), port, packet_size, remote_ip
+        )
+        send_thread = threading.Thread(target=client_packet_handler.send_packet_client)
 
         # execute the thread's target function concurrently
-        send_thread.start()
         recv_thread.start()
+        send_thread.start()
 
-        # (send/recv)_thread waits until the main thread completes execution
+        # main thread waits until (send/recv)_thread completes execution
         send_thread.join()
         recv_thread.join()
 
+    except KeyboardInterrupt:
+        # Display throughputs
         if server_packet_handler.throughputs:
             print(
-                "Average throughput: ",
+                "\nAverage downlink throughput: ",
                 statistics.mean(server_packet_handler.throughputs),
                 f"kbps\nTotal packets: {len(server_packet_handler.throughputs)}",
             )
-        print("Goodbye.")
-    except KeyboardInterrupt:
-        if server_packet_handler.throughputs:
+        if client_packet_handler.throughputs:
             print(
-                "Average throughput: ",
-                statistics.mean(server_packet_handler.throughputs),
-                f"kbps\nTotal packets: {len(server_packet_handler.throughputs)}",
+                "\nAverage uplink throughput: ",
+                statistics.mean(client_packet_handler.throughputs),
+                f"kbps\nTotal packets: {len(client_packet_handler.throughputs)}",
             )
         print("\nGoodbye.")
