@@ -25,11 +25,11 @@ import threading
 
 class PacketHandler:
 
-    def __init__(self, protocol, ip, port, packet_size):
+    def __init__(self, protocol, port, packet_size, ip="localhost"):
         self.protocol = protocol
-        self.ip = ip
         self.port = port
         self.packet_size = packet_size
+        self.ip = ip
         self.connected = False  # flag: connected to a server or not
         self.throughputs = set()  # each packet's throughput
 
@@ -39,7 +39,7 @@ class PacketHandler:
             socket.SOCK_STREAM if protocol == "tcp" else socket.SOCK_DGRAM,
         )
         # Bind and listen for tcp server
-        if protocol == "tcp" and ip:
+        if self.protocol == "tcp" and ip == "localhost":
             self.socket.bind((ip, port))
 
     # This function sends packets
@@ -65,7 +65,7 @@ class PacketHandler:
     # This function receives packets
     def receive_packet_server(self):
         try:
-            print(f"Server listening on {self.ip}/{self.protocol}:{self.port}...")
+            print(f"Server listening on localhost/{self.protocol}:{self.port}...")
             # Listen to TCP/IP
             if self.protocol == "tcp":
                 self.socket.listen(3)  # max connections
@@ -92,7 +92,8 @@ class PacketHandler:
                 data = conn.recv(self.packet_size)
                 end_time = time.time()
                 if not data:
-                    self.socket.close()
+                    conn.close()  # connection socket
+                    self.socket.close()  # listening socket
                     print(f"Connection closed by {addr}")
                     return
                 print(f"Connected by TCP/{addr} - Data received: {data}")
@@ -111,32 +112,36 @@ if __name__ == "__main__":
     try:
         # protocol, ip, port, packet_size = input("TCP or UDP: "), input('IP: '), input('Port: '), input('Packet Size: ')
 
-        protocol, ip, port, packet_size = "tcp", "192.168.1.2", 1337, 1024
+        protocol, ip, port, packet_size = "tcp", "192.168.1.18", 1337, 1024
 
-        packet_handler = PacketHandler(protocol.lower(), ip, port, packet_size)
+        server_packet_handler = PacketHandler(protocol.lower(), port, packet_size)
+        client_packet_handler = PacketHandler(protocol.lower(), port, packet_size, ip)
 
-        send_thread = threading.Thread(target=packet_handler.send_packet_client)
-        recv_thread = threading.Thread(target=packet_handler.receive_packet_server)
+        send_thread = threading.Thread(target=client_packet_handler.send_packet_client)
+        recv_thread = threading.Thread(
+            target=server_packet_handler.receive_packet_server
+        )
 
         # execute the thread's target function concurrently
         send_thread.start()
         recv_thread.start()
-        # (send/recv)_thread waits until the main thread completes execution
-        # send_thread.join()
-        # recv_thread.join()
 
-        if packet_handler.throughputs:
+        # (send/recv)_thread waits until the main thread completes execution
+        send_thread.join()
+        recv_thread.join()
+
+        if server_packet_handler.throughputs:
             print(
                 "Average throughput: ",
-                statistics.mean(packet_handler.throughputs),
-                f"kbps\nTotal packets: {len(packet_handler.throughputs)}",
+                statistics.mean(server_packet_handler.throughputs),
+                f"kbps\nTotal packets: {len(server_packet_handler.throughputs)}",
             )
         print("Goodbye.")
     except KeyboardInterrupt:
-        if packet_handler.throughputs:
+        if server_packet_handler.throughputs:
             print(
                 "Average throughput: ",
-                statistics.mean(packet_handler.throughputs),
-                f"kbps\nTotal packets: {len(packet_handler.throughputs)}",
+                statistics.mean(server_packet_handler.throughputs),
+                f"kbps\nTotal packets: {len(server_packet_handler.throughputs)}",
             )
         print("\nGoodbye.")
