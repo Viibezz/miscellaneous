@@ -1,6 +1,6 @@
 """
-I wrote a similar script many years ago for a school project and wanted to 
-redo the project to analyze my WiFi signal at different spots.
+I found my old school project to analyze WiFi signal at different
+distances and decided to review/expand this subject.
 
 packet_io.py
 The script utilizes IPv4 to bind a (TCP/UDP) socket to a specified  
@@ -10,47 +10,55 @@ The script tracks the throughput over time in a set, to draw an
 analysis diagram for analyzing a WiFi network's throughput at different 
 distances.
 
-The throughput is calculated by dividing the size of each packet 
-(in kilobytes) by the elapsed time taken for the packet to be transmitted. 
+The throughput is calculated by converting each packet size from bytes 
+to kilobytes and dividing it by the elapsed time (in seconds) of the packet  
+transmission - throughput is typically measured in kilobytes per second.
+When calculating the average throughput, including duplicate values would 
+skew the average, potentially leading to less accurate results.
 """
 
 import socket
 import time
 import statistics
+import threading
 
 
 class PacketHandler:
 
-    def __init__(self, protocol, ip, port, packet_size, send_or_receive):
+    def __init__(self, protocol, ip, port, packet_size):
         self.protocol = protocol
         self.ip = ip
         self.port = port
         self.packet_size = packet_size
-        self.send_or_receive = send_or_receive
-        self.connected = False
-        self.throughputs = set()
+        self.connected = False  # flag: connected to a server or not
+        self.throughputs = set()  # each packet's throughput
 
         # Create a socket
         self.socket = socket.socket(
             socket.AF_INET,
             socket.SOCK_STREAM if protocol == "tcp" else socket.SOCK_DGRAM,
         )
-        # Bind and listen if we are receiving and not sending
-        if send_or_receive == "2":
+        # Bind and listen for tcp server
+        if protocol == "tcp" and ip:
             self.socket.bind((ip, port))
 
     # This function sends packets
-    def send_packet_client(self, packet):
+    def send_packet_client(self):
         try:
-            start_time = time.time()
-            if not self.connected:
-                self.socket.connect((self.ip, self.port))
-                self.connected = True
-            self.socket.sendall(bytes(packet, "utf-8"))
-            end_time = time.time()
-            print(self.display_throughput("uplink", end_time - start_time))
-            data = self.socket.recv(self.packet_size)
-            print("The server echoed back: ", repr(data))
+            while True:
+                packet = input("Message to send (-1 to exit): ")
+                if packet == "-1":
+                    break
+
+                start_time = time.time()
+                if not self.connected:
+                    self.socket.connect((self.ip, self.port))
+                    self.connected = True
+                self.socket.sendall(bytes(packet, "utf-8"))
+                end_time = time.time()
+                print(self.display_throughput("uplink", end_time - start_time))
+                data = self.socket.recv(self.packet_size)
+                print("The server echoed back: ", repr(data))
         except Exception as e:
             print("Error: ", e)
 
@@ -58,28 +66,12 @@ class PacketHandler:
     def receive_packet_server(self):
         try:
             print(f"Server listening on {self.ip}/{self.protocol}:{self.port}...")
-            # Listen to TCP/IP with max 2 connections
+            # Listen to TCP/IP
             if self.protocol == "tcp":
-                self.socket.listen(2)
+                self.socket.listen(3)  # max connections
                 while True:
-                    start_time = time.time()
-                    conn, addr = self.socket.accept()
-                    with conn:
-                        while True:
-                            data = conn.recv(self.packet_size)
-                            end_time = time.time()
-                            if not data:
-                                packet_handler.socket.close()
-                                print(f"Connection closed by {addr}")
-                                return
-                            print(f"Connected by TCP/{addr} - Data received: {data}")
-                            conn.sendall(data)
-                            print("Echoed data back to client.")
-                            print(
-                                self.display_throughput(
-                                    "downlink", end_time - start_time
-                                )
-                            )
+                    self.handle_client()
+
             # UDP is connectionless, no need to listen
             else:
                 while True:
@@ -91,6 +83,23 @@ class PacketHandler:
         except Exception as e:
             print("Error: ", e)
 
+    # Receive packet, echo it back, and display downlink
+    def handle_client(self):
+        start_time = time.time()
+        conn, addr = self.socket.accept()
+        with conn:
+            while True:
+                data = conn.recv(self.packet_size)
+                end_time = time.time()
+                if not data:
+                    self.socket.close()
+                    print(f"Connection closed by {addr}")
+                    return
+                print(f"Connected by TCP/{addr} - Data received: {data}")
+                conn.sendall(data)
+                print("Echoed data back to client.")  # log
+                print(self.display_throughput("downlink", end_time - start_time))
+
     # This function displays (down/up)link throughput
     def display_throughput(self, direction, elapsed_time):
         tp = "{:.3f}".format((self.packet_size * 0.001) / elapsed_time)
@@ -100,30 +109,21 @@ class PacketHandler:
 
 if __name__ == "__main__":
     try:
-        # '1' = send, '2' = receive
-        send_or_receive = input("1.Send Packets\n2.Receive Packets\n")
-        while send_or_receive != "1" and send_or_receive != "2":
-            send_or_receive = input("1.Send Packets\n2.Receive Packets\n")
-
         # protocol, ip, port, packet_size = input("TCP or UDP: "), input('IP: '), input('Port: '), input('Packet Size: ')
 
         protocol, ip, port, packet_size = "tcp", "192.168.1.2", 1337, 1024
-        packet_handler = PacketHandler(
-            protocol.lower(), ip, port, packet_size, send_or_receive
-        )
 
-        # send data to the server
-        if send_or_receive == "1":
-            new_message = True
-            while new_message:
-                packet_data = input("Message to send (-1 to exit): ")
-                if packet_data != "-1":
-                    packet_handler.send_packet_client(packet_data)
-                else:
-                    new_message = False
-        # receive data
-        elif send_or_receive == "2":
-            received_packets = packet_handler.receive_packet_server()
+        packet_handler = PacketHandler(protocol.lower(), ip, port, packet_size)
+
+        send_thread = threading.Thread(target=packet_handler.send_packet_client)
+        recv_thread = threading.Thread(target=packet_handler.receive_packet_server)
+
+        # execute the thread's target function concurrently
+        send_thread.start()
+        recv_thread.start()
+        # (send/recv)_thread waits until the main thread completes execution
+        # send_thread.join()
+        # recv_thread.join()
 
         if packet_handler.throughputs:
             print(
