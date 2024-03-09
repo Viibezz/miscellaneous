@@ -21,6 +21,9 @@ import socket
 import time
 import statistics
 import threading
+import logging
+
+log = logging.getLogger(__name__)
 
 
 class PacketHandler:
@@ -65,6 +68,7 @@ class PacketHandler:
                 while True:
                     packet_data = input("Message to send (-1 to exit client): ")
                     if packet_data == "-1":
+                        log.debug("Client connection closed.")
                         print("Client connection closed.")
                         return
                     start_time = time.time()
@@ -74,10 +78,12 @@ class PacketHandler:
                     self.socket.sendall(bytes(packet_data, "utf-8"))
                     end_time = time.time()
                     data = self.socket.recv(self.packet_size)
+                    log.info("The server echoed back: ", repr(data))
                     print("The server echoed back: ", repr(data))
+                    log.info(self.display_throughput("uplink", end_time - start_time))
                     print(self.display_throughput("uplink", end_time - start_time))
-            except:
-                print("Error in input_thread.")
+            except Exception as e:
+                log.error("Error in input_thread.", e)
 
         try:
             # This thread will allow user input of the packet data to send,
@@ -86,7 +92,7 @@ class PacketHandler:
             packet_input_thread = threading.Thread(target=input_thread)
             packet_input_thread.start()
         except Exception as e:
-            print("Client Error: ", e)
+            log.error("Client Error: ", e)
         finally:
             # This will clean up after the packet input thread finishes execution,
             # before the main thread continues execution
@@ -111,10 +117,10 @@ class PacketHandler:
                     start_time = time.time()
                     data, addr = self.socket.recvfrom(self.packet_size)
                     end_time = time.time()
-                    print(f"From {addr} - Data received: {data}")
-                    print(self.display_throughput("downlink", end_time - start_time))
+                    log.info(f"From {addr} - Data received: {data}")
+                    log.info(self.display_throughput("downlink", end_time - start_time))
         except:
-            print("Server connection closed.")
+            log.debug("Server connection closed.")
 
     # Receive TCP packet, echo it back, and display its throughput
     def handle_client(self):
@@ -132,10 +138,10 @@ class PacketHandler:
                     conn.close()  # connection socket
                     print(f"Connection closed by {addr}")
                     break
-                print(f"\nConnected by TCP/{addr} - Data received: {data}")
+                log.info(f"\nConnected by TCP/{addr} - Data received: {data}")
                 conn.sendall(data)
-                print(f"Echoed {data} back to client.")  # log
-                print(self.display_throughput("downlink", end_time - start_time))
+                log.debug(f"Echoed {data} back to client.")  # log
+                log.info(self.display_throughput("downlink", end_time - start_time))
         self.socket.close()  # close listening socket after handling client
 
     def display_throughput(self, link, elapsed_time):
@@ -174,7 +180,7 @@ if __name__ == "__main__":
         send_thread.join()
         recv_thread.join()
 
-    except KeyboardInterrupt:
+    except:
         # Display throughputs
         if server_packet_handler.throughputs:
             print(
